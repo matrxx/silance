@@ -1,8 +1,8 @@
 // Service worker : fonctionnement hors ligne.
 // Pour publier une nouvelle version de l'application, change VERSION ci-dessous.
-const VERSION = "v1";
+const VERSION = "v2";
 const CACHE = "simulateur-freelance-" + VERSION;
-const SHELL = ["./", "index.html", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/icon-maskable-512.png", "icons/apple-touch-icon.png", "icons/favicon-32.png", "icons/icon.svg"];
+const SHELL = ["./", "index.html", "manifest.webmanifest", "icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon.png", "favicon-32.png", "icon.svg"];
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
