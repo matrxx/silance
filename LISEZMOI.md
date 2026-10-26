@@ -5,6 +5,7 @@ Les données restent dans le navigateur de chaque utilisateur.
 
 ## Contenu du dossier
 
+
 | Fichier | Rôle |
 |---|---|
 | `index.html` | l'application |
