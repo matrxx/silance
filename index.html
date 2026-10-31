@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://api.github.com; manifest-src 'self'; worker-src 'self'; base-uri 'none'; form-action 'none'">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
@@ -471,6 +471,19 @@ select.inp.enh{display:none}
 .sin .row .rl small{font-size:.72rem}
 .snote li{margin:.25rem 0}
 @media (max-width:900px){.sopts{grid-template-columns:minmax(0,1fr)}.sgrid{display:flex;flex-direction:column;align-items:stretch}.sgrid>*{min-width:0}.sres{order:-1}}
+
+/* ---------- Synchronisation ---------- */
+.sync-chip svg{transition:color .2s}
+.sync-chip.ok svg{color:var(--ok-t)}
+.sync-chip.error svg{color:var(--bad-t)}
+.sync-chip.offline svg,.sync-chip.pending svg{color:var(--label2)}
+.sync-chip.busy svg{animation:syncspin 1.2s linear infinite;color:var(--accent-text)}
+@keyframes syncspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.sync-chip.busy svg{animation:none}}
+.sync-help{margin:.7rem .2rem 0;font-size:.86rem;color:var(--label2)}
+.sync-help summary{cursor:pointer;font-weight:600;color:var(--accent-text)}
+.sync-help ol{margin:.6rem 0 0;padding-left:1.2rem;line-height:1.6}
+.sync-help a{color:var(--accent-text)}
 /* ---------- mobile ---------- */
 @media (max-width:900px){
   .app{grid-template-columns:minmax(0,1fr)}
@@ -1017,6 +1030,7 @@ if (typeof module !== "undefined") module.exports = ENGINE;
     receipt: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
     scale: '<path d="M12 4v16M7 20h10M5 8h14"/><path d="M5 8l-2.5 6a3 3 0 0 0 5 0z"/><path d="M19 8l-2.5 6a3 3 0 0 0 5 0z"/>',
     more: '<circle cx="5.5" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><circle cx="18.5" cy="12" r="1.5" fill="currentColor" stroke="none"/>',
+    cloud: '<path d="M7 18a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17.2 8.8 4.6 4.6 0 0 1 17.4 18z"/>',
     chart: '<rect x="4" y="11" width="4" height="9" rx="1.2"/><rect x="10" y="4" width="4" height="16" rx="1.2"/><rect x="16" y="8" width="4" height="12" rx="1.2"/>',
     pencil: '<path d="M4 20l1-4L16.5 4.5a2 2 0 0 1 3 3L8 19z"/><path d="M14 7l3 3"/>',
     left: '<path d="M15 5l-7 7 7 7"/>',
@@ -1450,6 +1464,7 @@ if (typeof module !== "undefined") module.exports = ENGINE;
     if (saving) { again = true; return; }
     saving = true;
     const local = saveLocal();
+    onLocalSaved();
     if (store.ref) {
       try { await store.ref.set(clone(S)); setSaved("Enregistré"); }
       catch (e) { setSaved(local ? "Enregistré sur cet appareil" : "Échec de l’enregistrement"); }
@@ -1603,6 +1618,7 @@ if (typeof module !== "undefined") module.exports = ENGINE;
     const v = VIEWS.find(x => x.id === VIEW);
     $("#bar-t").textContent = v.t;
     const r = $("#bar-r"); r.replaceChildren();
+    const sch = syncChip(); if (sch) r.append(sch);
     const mobSel = h("select", { class: "inp scen-sel mob", "aria-label": "Scénario", style: "width:auto;max-width:44vw" });
     mobSel.addEventListener("change", () => switchScenario(mobSel.value));
     r.append(mobSel);
@@ -3576,6 +3592,274 @@ if (typeof module !== "undefined") module.exports = ENGINE;
         h("p", { class: "group-f", text: "Les événements durent une journée entière. Sur iPhone, ouvre le fichier pour l’ajouter à ton agenda : c’est une copie, qui ne se met pas à jour toute seule. Pour t’abonner à une adresse en ligne, désactive les montants et les noms avant de publier le fichier." })));
   }
 
+  /* ================= Synchronisation entre appareils (dépôt GitHub privé) ================= */
+  var syncInit = false;
+  const SYNC_LS = "simulateur-freelance-sync", SYNC_API = "https://api.github.com";
+  const SYNC_PREF_KEYS = ["accent", "appName", "blocks", "kpis", "categories", "data", "ics", "lastBackup"]; // thème, taille et densité restent propres à chaque appareil
+  const OWNER_RE = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/, REPO_RE = /^[A-Za-z0-9_.-]{1,100}$/, FILE_RE = /^(?!\/)(?!.*\.\.)[A-Za-z0-9_\-./]{1,120}\.json$/;
+  class SyncError extends Error { constructor(msg, kind) { super(msg); this.kind = kind; } }
+  let SY = (() => { try { const x = JSON.parse(localStorage.getItem(SYNC_LS)); if (x && typeof x === "object") return x; } catch (e) { /* aucune configuration */ } return {}; })();
+  const fixSY = () => { ["base", "mods", "seen"].forEach(k => { if (!SY[k] || typeof SY[k] !== "object") SY[k] = {}; }); };
+  fixSY();
+  const saveSY = () => { try { localStorage.setItem(SYNC_LS, JSON.stringify(SY)); } catch (e) { /* stockage plein */ } };
+  const syncOK = () => !window.claude && typeof fetch === "function";
+  const syncReady = () => syncOK() && SY.on === true && !!SY.token && !!SY.owner && !!SY.repo && !SY.halt;
+  let syncing = false, syncQueued = false, syncTimer = 0, pendingApply = false, SYS = { state: "off", msg: "" };
+
+  /* ----- outils ----- */
+  const stable = v => Array.isArray(v) ? "[" + v.map(stable).join(",") + "]" : v && typeof v === "object" ? "{" + Object.keys(v).sort().map(k => JSON.stringify(k) + ":" + stable(v[k])).join(",") + "}" : JSON.stringify(v);
+  const hashStr = s => { let a = 5381, b = 52711; for (let i = 0; i < s.length; i++) { const c = s.charCodeAt(i); a = (((a << 5) + a) ^ c) >>> 0; b = (((b << 5) + b) ^ c) >>> 0; } return a.toString(36) + b.toString(36) + s.length.toString(36); };
+  const hashOf = v => hashStr(stable(v));
+  const scHash = sc => hashOf(sanitizeScenario(clone(sc)));
+  const toB64 = s => { const bytes = new TextEncoder().encode(s); let bin = ""; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(bin); };
+  const fromB64 = b => { const bin = atob(String(b).replace(/\s/g, "")); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))); };
+  const prefsSubsetOf = raw => { const full = sanitizePrefs(Object.assign({}, clone(P()), raw || {})), o = {}; SYNC_PREF_KEYS.forEach(k => { o[k] = full[k]; }); return o; };
+  const prefsSubset = () => prefsSubsetOf(null);
+  const digestOf = (scs, prefs) => hashStr(scs.map(s => s.id + ":" + scHash(s)).sort().join("|") + "#" + hashOf(prefs));
+  const digestLocal = () => digestOf(S.scenarios, prefsSubset());
+  const shortStamp = () => { const d = new Date(); return `${pad(d.getDate())}/${pad(d.getMonth() + 1)} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const deviceLabel = () => /iPhone/.test(navigator.userAgent) ? "iPhone" : /iPad/.test(navigator.userAgent) ? "iPad" : /Android/.test(navigator.userAgent) ? "Android" : "ordinateur";
+  const scenSig = sc => { let t = JSON.stringify(sc); [sc.id, ...sc.missions.map(m => m.id), ...sc.items.map(i => i.id), ...(sc.report || []).map(r => r.id), ...(sc.reel || []).map(r => r.id)].filter(Boolean).forEach((id, k) => { t = t.split(id).join("#" + k); }); return hashOf(JSON.parse(t)); };
+  const isPristineState = () => S.scenarios.length === 1 && S.scenarios[0].nom === "Exemple" && scenSig(S.scenarios[0]) === scenSig(example());
+  const editing = () => { if (document.querySelector("dialog[open]")) return true; const a = document.activeElement; return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.closest("#content, dialog")); };
+
+  /* ----- suivi des modifications locales ----- */
+  function trackLocal() {
+    const seen = {}, now = Date.now(); let changed = false;
+    S.scenarios.forEach(sc => { const h1 = scHash(sc); seen[sc.id] = h1; if (SY.seen[sc.id] !== h1) { SY.mods[sc.id] = now; changed = true; } });
+    if (Object.keys(SY.seen).length !== Object.keys(seen).length) changed = true;
+    SY.seen = seen;
+    const hp = hashOf(prefsSubset()); if (hp !== SY.prefsSeen) { SY.prefsSeen = hp; SY.prefsMod = now; changed = true; }
+    if (changed) saveSY();
+  }
+  function onLocalSaved() {
+    if (!syncInit || !syncReady()) return;
+    trackLocal();
+    if (digestLocal() !== SY.digest) { setSync("pending"); syncSoon(2500); }
+  }
+
+  /* ----- accès à l'API GitHub ----- */
+  const gh = (method, path, body, extra) => fetch(SYNC_API + path, { method, cache: "no-store", headers: Object.assign({ Authorization: "Bearer " + SY.token, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" }, body ? { "Content-Type": "application/json" } : {}, extra || {}), body: body ? JSON.stringify(body) : undefined });
+  const contentsUrl = () => `/repos/${SY.owner}/${SY.repo}/contents/${SY.path.split("/").map(encodeURIComponent).join("/")}`;
+  function httpError(res, ctx) {
+    if (res.status === 401) return new SyncError("Jeton refusé ou expiré. Remplace-le dans Réglages.", "auth");
+    if (res.status === 403) return res.headers.get("x-ratelimit-remaining") === "0" ? new SyncError("Limite d’appels GitHub atteinte : nouvel essai plus tard.", "rate") : new SyncError("Accès refusé : le jeton doit avoir la permission Contents en lecture et écriture.", "forbidden");
+    if (res.status === 404) return new SyncError(ctx === "put" ? "Dépôt introuvable, ou jeton sans droit d’écriture (Contents : lecture et écriture)." : "Dépôt introuvable ou accès retiré.", "notfound");
+    return new SyncError(`GitHub a répondu ${res.status}.`, "http");
+  }
+  async function ghPull(useEtag) {
+    const res = await gh("GET", contentsUrl(), null, useEtag && SY.etag ? { "If-None-Match": SY.etag } : {});
+    if (res.status === 304) return { unchanged: true };
+    if (res.status === 404) { const rr = await gh("GET", `/repos/${SY.owner}/${SY.repo}`); if (rr.ok) return { missing: true }; throw httpError(rr, "get"); }
+    if (!res.ok) throw httpError(res, "get");
+    const j = await res.json(); let text;
+    if (j.encoding === "base64" && typeof j.content === "string" && j.content.length) text = fromB64(j.content);
+    else { const b = await gh("GET", `/repos/${SY.owner}/${SY.repo}/git/blobs/${j.sha}`); if (!b.ok) throw httpError(b, "get"); text = fromB64((await b.json()).content); }
+    return { sha: j.sha, etag: res.headers.get("etag"), text };
+  }
+  async function ghPut(text, sha) {
+    const body = { message: `Synchronisation (${SY.device || "appareil"})`, content: toB64(text) }; if (sha) body.sha = sha;
+    const res = await gh("PUT", contentsUrl(), body);
+    if (res.status === 409 || res.status === 422) throw new SyncError("Conflit de synchronisation répété : réessaie dans un instant.", "conflict");
+    if (!res.ok) throw httpError(res, "put");
+    return { sha: (await res.json()).content.sha };
+  }
+
+  /* ----- fichier distant ----- */
+  function parseDoc(text) {
+    let d; try { d = JSON.parse(text); } catch (e) { throw new SyncError("Le fichier du dépôt n’est pas lisible : synchronisation arrêtée pour ne rien écraser.", "format"); }
+    if (!d || d.format !== "simulateur-freelance-sync" || !Array.isArray(d.scenarios)) throw new SyncError("Le fichier du dépôt n’a pas le bon format : synchronisation arrêtée pour ne rien écraser.", "format");
+    const scenarios = d.scenarios.slice(0, 40).filter(x => x && typeof x === "object" && typeof x.id === "string" && x.id && x.data && typeof x.data === "object")
+      .map(x => { const data = sanitizeScenario(Object.assign({}, x.data, { id: x.id })); return { id: data.id, mod: Number.isFinite(+x.mod) ? +x.mod : 0, data }; });
+    return { scenarios, prefs: d.prefs && typeof d.prefs === "object" ? prefsSubsetOf(d.prefs) : null, prefsMod: Number.isFinite(+d.prefsMod) ? +d.prefsMod : 0 };
+  }
+  const buildDoc = m => ({ format: "simulateur-freelance-sync", version: 1, updatedAt: new Date().toISOString(), device: SY.device || deviceLabel(),
+    scenarios: m.out.map(sc => ({ id: sc.id, mod: m.mods[sc.id] || 0, data: sc })), prefs: m.prefsOut, prefsMod: m.prefsMod });
+
+  /* ----- fusion à trois voies (version commune, locale, distante) ----- */
+  function mergeAll(remote) {
+    const remoteUsable = !!(remote && remote.scenarios.length), pristine = isPristineState();
+    const useBase = pristine && Object.keys(SY.base).length ? {} : SY.base;
+    const R = new Map((remoteUsable ? remote.scenarios : []).map(r => [r.id, r]));
+    const L = new Map(pristine && remoteUsable ? [] : S.scenarios.map(s => [s.id, sanitizeScenario(clone(s))]));
+    const out = [], mods = {}, st = { added: 0, removed: 0, pulled: 0, conflicts: 0 };
+    const order = [...L.keys(), ...[...R.keys()].filter(id => !L.has(id))];
+    for (const id of order) {
+      const l = L.get(id), r = R.get(id), b = useBase[id], hl = l ? scHash(l) : null, hr = r ? scHash(r.data) : null;
+      if (l && r) {
+        if (hl === hr) { out.push(l); mods[id] = Math.max(SY.mods[id] || 0, r.mod); }
+        else if (b !== undefined && hr === b) { out.push(l); mods[id] = SY.mods[id] || Date.now(); }                       // modifié ici
+        else if (b !== undefined && hl === b) { out.push(r.data); mods[id] = r.mod; st.pulled++; }                         // modifié ailleurs
+        else { out.push(r.data); mods[id] = r.mod; st.conflicts++; const copy = clone(l); copy.id = uid(); copy.nom = `${l.nom} (version locale du ${shortStamp()})`; out.push(copy); mods[copy.id] = Date.now(); }
+      } else if (l) {
+        if (b !== undefined && hl === b && remoteUsable) st.removed++;                                                      // supprimé ailleurs, non modifié ici
+        else { out.push(l); mods[id] = SY.mods[id] || Date.now(); }                                                         // nouveau ou modifié ici
+      } else if (b !== undefined && hr === b) st.removed++;                                                                  // supprimé ici, non modifié ailleurs
+      else { out.push(r.data); mods[id] = r.mod; st.added++; }
+    }
+    if (!out.length) S.scenarios.forEach(s => { const c = sanitizeScenario(clone(s)); out.push(c); mods[c.id] = SY.mods[c.id] || Date.now(); });
+    // réglages d'affichage
+    const pl = prefsSubset(), hpl = hashOf(pl); let prefsOut = pl, prefsMod = SY.prefsMod || 0, prefsRemote = false;
+    if (remote && remote.prefs) {
+      const hpr = hashOf(remote.prefs);
+      if (hpr !== hpl) {
+        const lc = hpl !== SY.prefsBase, rc = hpr !== SY.prefsBase;
+        const takeRemote = (pristine && Object.keys(SY.base).length === 0) || (!lc && rc) || (lc && rc && (remote.prefsMod >= (SY.prefsMod || 0)));
+        if (takeRemote) { prefsOut = remote.prefs; prefsMod = remote.prefsMod; prefsRemote = true; }
+      } else prefsMod = Math.max(prefsMod, remote.prefsMod);
+    }
+    const remoteDigest = remote ? digestOf(remote.scenarios.map(r => r.data), remote.prefs || prefsOut) : "";
+    return { out, mods, st, prefsOut, prefsMod, prefsRemote, needPush: !remote || !remoteUsable || digestOf(out, prefsOut) !== remoteDigest,
+      localChanged: digestOf(out, prefsOut) !== digestLocal() };
+  }
+  function applyMerged(m) {
+    const keep = S.activeId;
+    S.scenarios = m.out.map(sc => clone(sc));
+    if (!S.scenarios.some(s => s.id === keep)) S.activeId = S.scenarios[0].id;
+    if (m.prefsRemote) Object.assign(S.prefs, clone(m.prefsOut));
+    const seen = {}; S.scenarios.forEach(sc => { seen[sc.id] = scHash(sc); }); SY.seen = seen; SY.prefsSeen = hashOf(prefsSubset()); SY.mods = Object.assign({}, m.mods);
+    saveLocal(); SEL = null; renderAll();
+  }
+  function commitBase(m) {
+    const base = {}; S.scenarios.forEach(sc => { base[sc.id] = scHash(sc); });
+    SY.base = base; SY.mods = Object.assign({}, m.mods); SY.prefsBase = hashOf(prefsSubset()); SY.prefsMod = m.prefsMod; SY.prefsSeen = SY.prefsBase;
+    const seen = {}; S.scenarios.forEach(sc => { seen[sc.id] = base[sc.id]; }); SY.seen = seen;
+    SY.digest = digestLocal(); SY.last = Date.now(); SY.err = ""; SY.halt = ""; saveSY();
+  }
+  function notifyMerge(m, first) {
+    const s = m.st;
+    if (first) toast(`Synchronisation activée : ${S.scenarios.length} scénario${S.scenarios.length > 1 ? "s" : ""}`);
+    else if (s.conflicts) toast("Conflit : une copie de ta version locale a été conservée");
+    else if (s.pulled + s.added + s.removed > 0 && m.localChanged) toast("Mis à jour depuis un autre appareil");
+  }
+
+  /* ----- orchestration ----- */
+  function syncSoon(ms) { if (!syncReady()) return; clearTimeout(syncTimer); syncTimer = setTimeout(() => runSync(), ms == null ? 2500 : ms); }
+  async function runSync(o = {}) {
+    if (!syncOK() || !SY.on || !SY.token) return { ok: false };
+    if (o.force) SY.halt = "";
+    if (SY.halt) return { ok: false };
+    if (syncing) { syncQueued = true; return { ok: false }; }
+    if (!navigator.onLine) { setSync("offline"); return { ok: false }; }
+    syncing = true; setSync("busy");
+    try {
+      trackLocal();
+      const dirty = digestLocal() !== SY.digest;
+      let r = await ghPull(!o.force && !dirty);
+      if (r.unchanged) { SY.last = Date.now(); SY.err = ""; saveSY(); setSync("ok"); return { ok: true }; }
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const remote = r.missing ? null : parseDoc(r.text), m = mergeAll(remote);
+        if (m.localChanged) { if (editing()) { pendingApply = true; setSync("pending"); syncSoon(5000); return { ok: true, deferred: true }; } applyMerged(m); }
+        if (!m.needPush) { SY.sha = r.sha || null; SY.etag = r.etag || null; commitBase(m); setSync("ok"); notifyMerge(m, o.first); return { ok: true }; }
+        try {
+          const p = await ghPut(JSON.stringify(buildDoc(m), null, 1), r.sha || null);
+          SY.sha = p.sha; SY.etag = null; commitBase(m); setSync("ok"); notifyMerge(m, o.first); return { ok: true };
+        } catch (e) { if (e.kind === "conflict" && attempt < 3) { r = await ghPull(false); continue; } throw e; }
+      }
+      return { ok: false };
+    } catch (e) {
+      const kind = e instanceof SyncError ? e.kind : "network";
+      if (kind === "network") { setSync("offline", "Pas de connexion à GitHub : nouvel essai bientôt."); setTimeout(() => syncSoon(0), 20000); return { ok: false, error: "network" }; }
+      SY.err = e.message || "Erreur de synchronisation."; if (["auth", "forbidden", "format", "notfound"].includes(kind)) SY.halt = kind; saveSY();
+      setSync("error", SY.err); return { ok: false, error: SY.err };
+    } finally { syncing = false; if (syncQueued) { syncQueued = false; syncSoon(300); } }
+  }
+  async function validateRepo() {
+    const res = await gh("GET", `/repos/${SY.owner}/${SY.repo}`);
+    if (res.status === 401) throw new SyncError("Jeton refusé ou expiré.", "auth");
+    if (res.status === 404) throw new SyncError("Dépôt introuvable : vérifie son nom et que le jeton donne accès à ce dépôt.", "notfound");
+    if (!res.ok) throw new SyncError(`GitHub a répondu ${res.status}.`, "http");
+    const j = await res.json();
+    if (!j.private) throw new SyncError("Ce dépôt est public : tes données seraient lisibles par tout le monde. Utilise un dépôt privé.", "public");
+    if (j.archived) throw new SyncError("Ce dépôt est archivé : il ne peut plus recevoir de modifications.", "forbidden");
+    if (j.permissions && j.permissions.push === false) throw new SyncError("Le jeton ne peut pas écrire dans ce dépôt (permission Contents : lecture et écriture).", "forbidden");
+  }
+  async function syncConnect(repoStr, token, path) {
+    const parts = String(repoStr).trim().replace(/^https?:\/\/github\.com\//i, "").replace(/\.git$/i, "").replace(/\/+$/, "").split("/");
+    if (parts.length !== 2 || !OWNER_RE.test(parts[0]) || !REPO_RE.test(parts[1])) throw new SyncError("Écris le dépôt sous la forme « compte/nom-du-dépôt ».", "input");
+    const file = String(path || "").trim() || "scenarios.json"; if (!FILE_RE.test(file)) throw new SyncError("Nom de fichier invalide : lettres, chiffres, tirets et extension .json.", "input");
+    const tok = String(token).trim(); if (tok.length < 20 || !/^[\x21-\x7e]+$/.test(tok)) throw new SyncError("Ce texte ne ressemble pas à un jeton GitHub.", "input");
+    const old = SY; SY = Object.assign({}, old, { owner: parts[0], repo: parts[1], path: file, token: tok, halt: "", err: "" }); fixSY();
+    try { await validateRepo(); } catch (e) { SY = old; throw e; }
+    if (!(old.owner === SY.owner && old.repo === SY.repo && old.path === SY.path)) { SY.base = {}; SY.mods = {}; SY.seen = {}; SY.prefsBase = undefined; SY.prefsSeen = undefined; SY.digest = ""; SY.sha = null; SY.etag = null; }
+    SY.on = true; SY.device = SY.device || deviceLabel(); saveSY();
+    const res = await runSync({ force: true, first: true });
+    if (!res.ok && SY.err) throw new SyncError(SY.err, "sync");
+  }
+  async function syncReplaceToken(token) {
+    const tok = String(token).trim(); if (tok.length < 20 || !/^[\x21-\x7e]+$/.test(tok)) throw new SyncError("Ce texte ne ressemble pas à un jeton GitHub.", "input");
+    const old = SY.token; SY.token = tok;
+    try { await validateRepo(); } catch (e) { SY.token = old; throw e; }
+    SY.halt = ""; SY.err = ""; saveSY(); runSync({ force: true });
+  }
+  function syncDisconnect() { clearTimeout(syncTimer); SY = { device: SY.device }; fixSY(); saveSY(); setSync("off"); }
+
+  /* ----- état affiché ----- */
+  function syncText() {
+    const t = SY.last ? new Date(SY.last) : null, hhmm = t ? t.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" }) : "";
+    return { off: "Synchronisation désactivée", busy: "Synchronisation en cours…", pending: "Modifications à envoyer…", offline: SYS.msg || "Hors ligne : la synchronisation reprendra à la reconnexion", error: SYS.msg || "Erreur de synchronisation", ok: t ? `Synchronisé à ${hhmm}` : "Synchronisé" }[SYS.state] || "";
+  }
+  function setSync(state, msg) {
+    SYS = { state, msg: msg || "" };
+    const chip = $("#sync-chip"); if (chip) { chip.className = "ib sync-chip " + state; chip.title = syncText(); chip.setAttribute("aria-label", "Synchronisation : " + syncText()); }
+    const el = $("#sync-status"); if (el) el.textContent = syncText();
+  }
+  function syncChip() {
+    if (!syncOK() || !SY.on) return null;
+    const b = h("button", { id: "sync-chip", class: "ib sync-chip " + SYS.state, type: "button", title: syncText(), "aria-label": "Synchronisation : " + syncText() }, ico("cloud"));
+    b.addEventListener("click", () => { runSync({ force: true }).then(r => { if (r && r.ok) toast("Synchronisé"); else if (r && r.error && r.error !== "network") toast(r.error); }); });
+    return b;
+  }
+
+  /* ----- section des Réglages ----- */
+  function syncSection() {
+    if (!syncOK()) return [];
+    const nodes = [h("div", { class: "group-t", text: "Synchronisation entre appareils" })];
+    const err = h("p", { class: "merr", style: "margin:.6rem .2rem 0;font-size:.84rem", role: "alert" });
+    const showErr = e => { err.textContent = e && e.message ? e.message : "Échec de la connexion."; };
+    if (SY.on && SY.token) {
+      const stat = h("span", { id: "sync-status", class: "num", "aria-live": "polite", text: syncText() });
+      const now = h("button", { class: "btn gray", type: "button", text: "Synchroniser" }); now.addEventListener("click", () => { runSync({ force: true }).then(r => { if (r && r.ok) toast("Synchronisé"); else if (r && r.error && r.error !== "network") showErr({ message: r.error }); }); });
+      const tokenIn = h("input", { class: "inp", type: "password", autocomplete: "off", autocapitalize: "off", spellcheck: "false", placeholder: "Nouveau jeton", "aria-label": "Nouveau jeton GitHub" });
+      const tokenBtn = h("button", { class: "btn gray", type: "button", text: "Remplacer" });
+      tokenBtn.addEventListener("click", () => { if (!tokenIn.value.trim()) { tokenIn.focus(); return; } tokenBtn.disabled = true; syncReplaceToken(tokenIn.value).then(() => { toast("Jeton remplacé"); renderReg(); }).catch(e => { showErr(e); tokenBtn.disabled = false; }); });
+      const off = h("button", { class: "btn danger", type: "button", text: "Déconnecter" });
+      off.addEventListener("click", () => armed(off, "Confirmer", () => { syncDisconnect(); toast("Synchronisation désactivée"); renderBar(); renderReg(); }));
+      nodes.push(h("div", { class: "group" },
+        row("Dépôt", h("span", { class: "num", text: `${SY.owner}/${SY.repo}` }), { hint: SY.path }),
+        row("État", stat), row("Synchroniser maintenant", now),
+        row("Jeton d’accès", h("span", { style: "display:inline-flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end" }, tokenIn, tokenBtn), { hint: "Enregistré uniquement sur cet appareil" }),
+        row("Désactiver", off, { hint: "Tes scénarios restent sur cet appareil" })), err,
+        h("p", { class: "group-f", text: "Chaque synchronisation crée une version dans l’historique du dépôt GitHub : tu peux revenir en arrière. Si deux appareils modifient le même scénario en même temps, la version la plus récemment envoyée est gardée et ta version locale devient une copie." }));
+    } else {
+      const repo = h("input", { class: "inp wide", type: "text", autocomplete: "off", autocapitalize: "off", spellcheck: "false", placeholder: "compte/nom-du-dépôt", "aria-label": "Dépôt GitHub privé" });
+      const token = h("input", { class: "inp wide", type: "password", autocomplete: "off", autocapitalize: "off", spellcheck: "false", placeholder: "github_pat_…", "aria-label": "Jeton d’accès GitHub" });
+      const file = h("input", { class: "inp wide", type: "text", autocomplete: "off", autocapitalize: "off", spellcheck: "false", placeholder: "scenarios.json", "aria-label": "Nom du fichier" });
+      const go = h("button", { class: "btn fill", type: "button", text: "Se connecter" });
+      go.addEventListener("click", () => { err.textContent = ""; go.disabled = true; syncConnect(repo.value, token.value, file.value).then(() => { renderBar(); renderReg(); }).catch(e => { showErr(e); go.disabled = false; renderBar(); }); });
+      const lnk = (href, t) => h("a", { href, target: "_blank", rel: "noopener noreferrer", text: t });
+      nodes.push(h("div", { class: "group" }, row("Dépôt privé", repo, { hint: "Un dépôt à part, jamais celui du site" }), row("Jeton d’accès", token, { hint: "Enregistré uniquement sur cet appareil" }), row("Fichier", file, { hint: "Facultatif" }), h("div", { class: "row" }, h("div", { class: "rl", text: "Activer" }), h("div", { class: "rc" }, go))), err,
+        h("details", { class: "sync-help" }, h("summary", { text: "Comment obtenir le jeton ?" }), h("ol", {},
+          h("li", {}, "Crée un dépôt ", h("strong", { text: "privé" }), " sur ", lnk("https://github.com/new", "github.com/new"), " (coche « Private » et « Add a README file »)."),
+          h("li", {}, "Ouvre ", lnk("https://github.com/settings/personal-access-tokens/new", "la création d’un jeton"), ". Donne un nom, choisis une durée (un an au maximum)."),
+          h("li", {}, "Dans « Repository access », choisis « Only select repositories » et sélectionne ce dépôt."),
+          h("li", {}, "Dans « Repository permissions », mets « Contents » sur « Read and write », puis valide avec « Generate token »."),
+          h("li", {}, "Copie le jeton, colle-le ci-dessus avec le nom du dépôt, puis touche « Se connecter ». Sur chaque autre appareil, refais seulement cette dernière étape."))),
+        h("p", { class: "group-f", text: "Les scénarios sont écrits dans ton dépôt privé, à chaque modification, et rechargés à l’ouverture. Rien ne passe par un autre serveur." }));
+    }
+    return nodes;
+  }
+  function initSync() {
+    syncInit = true;
+    if (!syncOK()) return;
+    if (syncReady()) { setSync("pending"); syncSoon(900); }
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") syncSoon(400); });
+    window.addEventListener("online", () => syncSoon(500));
+    window.addEventListener("offline", () => { if (syncReady()) setSync("offline"); });
+    document.addEventListener("focusout", () => { if (pendingApply) { pendingApply = false; syncSoon(700); } });
+    setInterval(() => { if (document.visibilityState === "visible" && syncReady() && !syncing) runSync(); }, 60000);
+  }
+
   /* ================= scénarios ================= */
   function renderScen() {
     const v = $("#v-scen"); v.replaceChildren(head("Scénarios", "Compare des variantes de ton année. Duplique un scénario pour tester une idée sans toucher à l’original."));
@@ -3757,6 +4041,7 @@ if (typeof module !== "undefined") module.exports = ENGINE;
       h("div", { style: "margin:.6rem 0 0" }, h("button", { class: "btn", type: "button", onclick: () => { sc.report.push({ id: uid(), libelle: "Facture de décembre", date: `${sc.annee}-01-30`, montant: 0 }); touch(); renderReg(); } }, ico("plus"), "Ajouter un encaissement")),
       h("p", { class: "group-f", text: "Factures émises en dehors du simulateur et payées pendant la période. Les factures des missions de l’année précédente sont déjà comptées automatiquement." }));
 
+    syncSection().forEach(n => colB.append(n));
     const resetAll = h("button", { class: "btn danger", type: "button", text: "Tout réinitialiser" });
     resetAll.addEventListener("click", () => armed(resetAll, "Confirmer", () => { S = freshState(); SEL = null; EDIT = false; compute(); renderAll(); scheduleSave(); toast("Application réinitialisée"); }));
     colB.append(h("div", { class: "group-t", text: "Scénarios et données" }), h("div", { class: "group" },
@@ -3765,7 +4050,7 @@ if (typeof module !== "undefined") module.exports = ENGINE;
       h("div", { class: "row" }, h("div", { class: "rl", text: "Dernière sauvegarde" }), h("div", { class: "rc" }, h("span", { id: "last-backup", class: "num", text: p.lastBackup ? fD(p.lastBackup) : "Jamais" }))),
       row("Importer un fichier", h("button", { class: "btn gray", type: "button", onclick: () => $("#file-in").click() }, ico("upload"), "Importer"), { hint: "Scénario ou export complet, ajouté à tes scénarios" }),
       row("Scénario d’exemple", h("button", { class: "btn gray", type: "button", text: "Ajouter", onclick: () => { const ex = example(); S.scenarios.push(ex); S.activeId = ex.id; compute(); renderAll(); scheduleSave(); toast("Scénario d’exemple ajouté et affiché"); } })),
-      row("Réinitialiser", resetAll, { hint: "Supprime tes scénarios et tes réglages" })),
+      row("Réinitialiser", resetAll, { hint: SY.on ? "Si la synchronisation est active, tes scénarios reviendront depuis le dépôt" : "Supprime tes scénarios et tes réglages" })),
       h("p", { class: "group-f", text: "Tes données sont enregistrées dans ce navigateur. Exporte-les pour les retrouver ailleurs." }),
       /iPhone|iPad/.test(navigator.userAgent) && !navigator.standalone && !window.claude && /^https?:$/.test(location.protocol) ? h("p", { class: "group-f", text: "Pour l’installer sur l’iPhone : dans Safari, touche Partager, puis « Sur l’écran d’accueil »." }) : null);
     v.append(h("div", { class: "pgrid" }, colA, colB));
@@ -3859,6 +4144,7 @@ if (typeof module !== "undefined") module.exports = ENGINE;
   renderAll();
   enhanceAll(document);
   initCapabilities();
+  initSync();
 })();
 
 </script>
