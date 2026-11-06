@@ -506,6 +506,87 @@ select.inp.enh{display:none}
   .toast{bottom:calc(5rem + env(safe-area-inset-bottom,0px))}
   .lrow,.lrow.rep{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 }
+/* ---------- Optimisation mobile ---------- */
+.tbl .s{display:none}
+@media (max-width:700px){
+  /* zones tactiles confortables */
+  .ib,.cc-tools .ib{width:2.6rem;height:2.6rem}
+  .period .ib{width:2.5rem;height:2.5rem}
+  .period .inp.pop{min-height:2.5rem}
+  .btn{min-height:2.6rem}
+  .chip{min-height:2.45rem;padding:.4rem .9rem;font-size:.86rem}
+  .seg button{min-height:2.3rem;padding:.35rem .8rem;font-size:.86rem}
+  .swatch,.swatch-custom{width:2rem;height:2rem}
+  .swatch[aria-pressed="true"]::after{inset:-3px}
+  .inp{min-height:2.6rem}
+  .mtop .tin{padding:.4rem .3rem}
+  .mtop .cin{padding:.3rem .3rem;min-height:2rem}
+  /* barre du haut */
+  #bar-r{gap:.4rem}
+  /* rangées de formulaire : les contrôles longs passent sous le libellé */
+  .row:has(.rc .pop),.row:has(.rc > select),.row:has(.rc .inp.wide),.row:has(.rtools){flex-direction:column;align-items:stretch;gap:.5rem}
+  .row:has(.rc .pop) .rc,.row:has(.rc > select) .rc,.row:has(.rc .inp.wide) .rc,.row:has(.rtools) .rc{max-width:none!important;width:100%}
+  .row:has(.rc .pop) .rc .inp.pop,.row:has(.rc > select) .rc select.inp,.row:has(.rc .inp.wide) .rc .inp{width:100%;max-width:none;min-width:0;text-align:left;text-align-last:left;background-color:var(--fill2);padding:.55rem .75rem}
+  .row:has(.rc .pop) .rc>span{display:flex;width:100%;gap:.5rem}.row:has(.rc .pop) .rc .inp.pop .pl{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;flex:1}
+  .rtools{justify-content:flex-start}
+  .rtools .btn{flex:1 1 9rem}
+  /* jours de la semaine d'une mission : sept colonnes égales */
+  .row.stack .rc{width:100%}
+  .week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:.3rem;width:100%}
+  .dchip{width:auto;height:3.1rem}
+  /* catégories et encaissements reportés */
+  .lrow:not(.rep){grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"dot nm del" ". kd .";row-gap:.45rem}
+  .lrow:not(.rep)>.swatch{grid-area:dot}.lrow:not(.rep)>input{grid-area:nm}.lrow:not(.rep)>.pop{grid-area:kd}.lrow:not(.rep)>.ib{grid-area:del}.lrow:not(.rep)>select{display:none}
+  .lrow.rep{grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto;grid-template-areas:"lib lib del" "dt mt .";row-gap:.45rem}
+  .lrow.rep>input:first-child{grid-area:lib}.lrow.rep>input[type="date"]{grid-area:dt}.lrow.rep>.money{grid-area:mt}.lrow.rep>.ib{grid-area:del}
+  /* actions d'un scénario */
+  .sacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(6.4rem,1fr))}
+  .sacts .btn{width:100%;padding-inline:.4rem}
+  /* en-tête des graphiques personnalisables */
+  .cc-h{flex-direction:column;align-items:stretch;gap:.4rem}
+  .cc-tools{margin-left:0;justify-content:flex-start;gap:.1rem}
+  /* échéancier : une liste plutôt qu'un tableau */
+  .scroll:has(> .tbl.ech),.scroll:has(> .rtbl){overflow:visible}
+  .tbl.ech,.tbl.ech tbody,.rtbl,.rtbl tbody{display:block;width:100%}
+  .tbl.ech thead,.rtbl thead{display:none}
+  .tbl.ech tr:not(.grp){display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"d t m" "l l l";gap:.15rem .6rem;padding:.75rem 0;border-bottom:.5px solid var(--sep);align-items:baseline}
+  .tbl.ech td,.rtbl td{display:block;padding:0;border:0;min-width:0}
+  .tbl.ech td:nth-child(1){grid-area:d}.tbl.ech td:nth-child(2){grid-area:t;color:var(--label2)}.tbl.ech td:nth-child(3){grid-area:l;font-size:.9rem;line-height:1.4}.tbl.ech td:nth-child(4){grid-area:m;font-weight:600}
+  .tbl.ech tr.grp{display:block;border:0}
+  .tbl.ech tr.grp td{display:block;position:static;padding:1rem 0 .25rem;border:0}
+  .tbl.ech td.empty-s{grid-column:1/-1}
+  /* suivi du réel : une carte par ligne */
+  .rtbl tr{display:grid;gap:.35rem .6rem;padding:.85rem 0;border-bottom:.5px solid var(--sep);align-items:center}
+  .rtbl tr:last-child{border-bottom:0}
+  .rtbl td[data-l]::before{content:attr(data-l);display:block;font-size:.7rem;font-weight:500;color:var(--label2);margin-bottom:.1rem}
+  .rtbl .n{text-align:left}
+  .rtbl td.acts{text-align:right}
+  .rtbl.plan tr{grid-template-columns:1fr 1fr auto;grid-template-areas:"mo mo st" "mi mi mi" "pv rl ac" "ec ec ec"}
+  .rtbl.plan td:nth-child(1){grid-area:mo;font-weight:600;font-size:.95rem}.rtbl.plan td:nth-child(2){grid-area:mi}.rtbl.plan td:nth-child(3){grid-area:pv}.rtbl.plan td:nth-child(4){grid-area:rl}.rtbl.plan td:nth-child(5){grid-area:ec}.rtbl.plan td:nth-child(6){grid-area:st}.rtbl.plan td:nth-child(7){grid-area:ac}
+  .rtbl.inv tr{grid-template-columns:1fr 1fr auto;grid-template-areas:"da da st" "mi mi nu" "mt pa mo" "ac ac ac"}
+  .rtbl.inv td:nth-child(1){grid-area:da;font-weight:600;font-size:.95rem}.rtbl.inv td:nth-child(2){grid-area:mo}.rtbl.inv td:nth-child(3){grid-area:mi}.rtbl.inv td:nth-child(4){grid-area:nu;text-align:right}.rtbl.inv td:nth-child(5){grid-area:mt}.rtbl.inv td:nth-child(6){grid-area:pa}.rtbl.inv td:nth-child(7){grid-area:st}.rtbl.inv td:nth-child(8){grid-area:ac}
+  .rtbl td:empty{display:none}
+  /* détail du calcul des structures : intitulés courts, cellules serrées */
+  .tbl .l{display:none}.tbl .s{display:inline}
+  .tbl.calc th,.tbl.calc td{padding:.5rem .3rem;font-size:.78rem}
+  .tbl.calc td:first-child,.tbl.calc th:first-child{min-width:5.4rem;white-space:normal}
+  .seg.full button{padding-inline:.25rem;font-size:.8rem}
+}
+@media (max-width:360px){
+  .row:has(.rc > .seg){flex-direction:column;align-items:stretch;gap:.5rem}
+  .row:has(.rc > .seg) .rc{max-width:none;width:100%}
+  .row:has(.rc > .seg) .seg{display:flex;width:100%}
+  .row:has(.rc > .seg) .seg button{flex:1;justify-content:center}
+  .sin .row .rc{max-width:62%}
+  .sin .row .rc .inp{width:4.4rem}
+  .mtop{gap:.45rem;padding-inline:calc(var(--u)*3)}
+  .mtop .ib{width:2.3rem;height:2.3rem}
+  #bar-r .btn.fill span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+  #bar-r .btn.fill{padding-inline:.7rem}
+  .scen-sel.mob{max-width:36vw!important}
+  .seg.full button{font-size:.74rem;padding-inline:.15rem}
+  .chip{padding-inline:.75rem}
+}
 @media (prefers-reduced-motion: reduce){*,*::before,*::after,dialog.sheet::backdrop{transition:none!important;animation:none!important}}
 </style>
 </head>
@@ -1076,6 +1157,13 @@ if (typeof module !== "undefined") module.exports = ENGINE;
     if (!root || root.nodeType !== 1 && root !== document) return;
     if (root.tagName === "SELECT") enhanceSelect(root);
     root.querySelectorAll("select").forEach(enhanceSelect);
+    // zones défilantes : accessibles au clavier et nommées pour les lecteurs d'écran
+    const scrolls = [...root.querySelectorAll(".scroll")]; if (root.classList && root.classList.contains("scroll")) scrolls.push(root);
+    scrolls.forEach(el => {
+      if (el.hasAttribute("tabindex")) return;
+      const box = el.closest(".card, section, article"), hd = box && box.querySelector("h2");
+      el.setAttribute("tabindex", "0"); el.setAttribute("role", "group"); el.setAttribute("aria-label", hd && hd.textContent.trim() ? hd.textContent.trim() + ", tableau défilant" : "Tableau défilant");
+    });
   }
   function placeMenu() {
     const m = POP.menu, r = POP.btn.getBoundingClientRect(), vw = window.innerWidth, vh = window.innerHeight, pad = 8;
@@ -2485,7 +2573,7 @@ if (typeof module !== "undefined") module.exports = ENGINE;
     const ms = h("select", { class: "inp", style: "width:auto", "aria-label": "Filtrer par mission" }, h("option", { value: "all", text: "Toutes les missions" }), SIM.missions.map(m => h("option", { value: m.id, text: m.nom || "Mission" })));
     ms.value = echMission; ms.addEventListener("change", () => { echMission = ms.value; echLimit = 250; renderEch(); });
     const rows = filteredEvents();
-    const t = h("table", { class: "tbl" });
+    const t = h("table", { class: "tbl ech" });
     t.append(h("thead", {}, h("tr", {}, h("th", { text: "Date" }), h("th", { text: "Type" }), h("th", { text: "Échéance" }), h("th", { class: "n", text: "Montant" }))));
     const tb = h("tbody");
     let lastM = "";
@@ -3095,7 +3183,7 @@ if (typeof module !== "undefined") module.exports = ENGINE;
   }
   function renderDataTable(box) {
     const { T, ds, valid, cols, rows, prev } = tableModel();
-    const rowsSeg = segCtl([["mois", "Mois"], ["trimestre", "Trimestres"], ["annee", "Années"], ["mission", "Missions"], ["categorie", "Catégories"]], T.rows, k => { T.rows = k; T.sort = null; renderDataBody(false); scheduleSave(); });
+    const rowsSeg = segCtl([["mois", "Mois"], ["trimestre", "Trimestres"], ["annee", "Années"], ["mission", "Missions"], ["categorie", "Catégories"]], T.rows, k => { T.rows = k; T.sort = null; renderDataBody(false); scheduleSave(); }, narrow());
     const chips = h("div", { class: "chips" }, valid.map(m => h("button", { class: "chip", type: "button", "aria-pressed": String(cols.includes(m)), text: METRICS[m].l, onclick: () => {
       const set = new Set(T.cols); cols.forEach(c => set.add(c)); if (cols.includes(m)) set.delete(m); else set.add(m); T.cols = [...set]; renderDataBody(false); scheduleSave();
     } })));
@@ -3226,16 +3314,16 @@ if (typeof module !== "undefined") module.exports = ENGINE;
       tp.append(h("tr", {},
         h("td", { class: "nw", text: `${cap(MOIS[+r.per.slice(5) - 1])} ${r.per.slice(0, 4)}` }),
         h("td", {}, h("span", { class: "mname" }, (() => { const m = sc.missions.find(x => x.id === r.mid); return m ? h("span", { class: "dot", style: `background:${cv(m.color)}` }) : null; })(), mName(sc, r.mid))),
-        h("td", { class: "n" }, eur2(r.plan), h("span", { class: "sub", text: `le ${fN(r.planDate)}` })),
-        h("td", { class: "n" }, r.rs.length ? [eur2(r.reel), h("span", { class: "sub", text: `émise le ${fN(r.lastDate)}` })] : "—"),
-        h("td", { class: "n" + (r.ecart == null ? "" : r.ecart > 0.004 ? " pos" : r.ecart < -0.004 ? " neg" : ""), text: r.ecart == null ? "" : (Math.abs(r.ecart) < 0.005 ? "0 €" : signed(r.ecart)) }),
+        h("td", { class: "n", "data-l": "Prévu" }, eur2(r.plan), h("span", { class: "sub", text: `le ${fN(r.planDate)}` })),
+        h("td", { class: "n", "data-l": "Réel" }, r.rs.length ? [eur2(r.reel), h("span", { class: "sub", text: `émise le ${fN(r.lastDate)}` })] : "—"),
+        h("td", { "data-l": "Écart", class: "n" + (r.ecart == null ? "" : r.ecart > 0.004 ? " pos" : r.ecart < -0.004 ? " neg" : ""), text: r.ecart == null ? "" : (Math.abs(r.ecart) < 0.005 ? "0 €" : signed(r.ecart)) }),
         h("td", {}, bdg(lab, cls)),
         h("td", { class: "acts" }, first
           ? h("button", { class: "btn plain", type: "button", text: "Modifier", onclick: () => openInvoiceSheet({ existing: first }) })
           : h("button", { class: "btn plain", type: "button", text: "Saisir", onclick: () => openInvoiceSheet({ prefill: { mid: r.mid, periode: r.per, date: r.planDate, montant: r.plan } }) }))));
     });
     v.append(h("div", { class: "sec-t", text: "Plan de facturation" }), h("div", { class: "card" }, h("div", { class: "scroll", style: "max-height:none" },
-      h("table", { class: "tbl rtbl" }, h("thead", {}, h("tr", {}, ["Mois", "Mission", "Prévu", "Réel", "Écart", "Statut", ""].map((c, i) => h("th", { class: i >= 2 && i <= 4 ? "n" : "" }, c || h("span", { class: "sr", text: "Actions" }))))), tp))));
+      h("table", { class: "tbl rtbl plan" }, h("thead", {}, h("tr", {}, ["Mois", "Mission", "Prévu", "Réel", "Écart", "Statut", ""].map((c, i) => h("th", { class: i >= 2 && i <= 4 ? "n" : "" }, c || h("span", { class: "sr", text: "Actions" }))))), tp))));
 
     // factures réelles
     const tr = h("tbody"), list = M.reals.slice().sort((a, b) => a.date < b.date ? 1 : a.date > b.date ? -1 : 0);
@@ -3244,14 +3332,14 @@ if (typeof module !== "undefined") module.exports = ENGINE;
       const [lab, cls] = realStatus(sc, r), del = h("button", { class: "ib", type: "button", title: "Supprimer", "aria-label": "Supprimer la facture" }, ico("trash"));
       del.addEventListener("click", () => armed(del, "OK", () => { sc.reel = sc.reel.filter(x => x.id !== r.id); touch(); toast("Facture supprimée"); }));
       tr.append(h("tr", {},
-        h("td", { class: "nw", text: fN(r.date) }), h("td", { class: "nw", text: `${MAB[+r.periode.slice(5) - 1]} ${r.periode.slice(0, 4)}` }),
+        h("td", { class: "nw", text: fN(r.date) }), h("td", { class: "nw", "data-l": "Mois", text: `${MAB[+r.periode.slice(5) - 1]} ${r.periode.slice(0, 4)}` }),
         h("td", {}, mName(sc, r.mid), M.orphans.has(r.id) ? h("span", { class: "sub", text: "hors prévision" }) : null),
-        h("td", { class: "nw", text: r.numero || "—" }), h("td", { class: "n", text: eur2(r.montant) }),
-        h("td", { class: "nw", text: isDate(r.paiement) ? fN(r.paiement) : "—" }), h("td", {}, bdg(lab, cls)),
+        h("td", { class: "nw", "data-l": "N°", text: r.numero || "—" }), h("td", { class: "n", "data-l": "Montant", text: eur2(r.montant) }),
+        h("td", { class: "nw", "data-l": "Payée le", text: isDate(r.paiement) ? fN(r.paiement) : "—" }), h("td", {}, bdg(lab, cls)),
         h("td", { class: "acts" }, h("button", { class: "ib acc", type: "button", title: "Modifier", "aria-label": "Modifier la facture", onclick: () => openInvoiceSheet({ existing: r }) }, ico("pencil")), del)));
     });
     v.append(h("div", { class: "sec-t", text: "Factures réelles" }), h("div", { class: "card" }, h("div", { class: "scroll", style: "max-height:none" },
-      h("table", { class: "tbl rtbl" }, h("thead", {}, h("tr", {}, ["Émise le", "Mois", "Mission", "N°", "Montant", "Payée le", "Statut", ""].map((c, i) => h("th", { class: i === 4 ? "n" : "" }, c || h("span", { class: "sr", text: "Actions" }))))), tr))));
+      h("table", { class: "tbl rtbl inv" }, h("thead", {}, h("tr", {}, ["Émise le", "Mois", "Mission", "N°", "Montant", "Payée le", "Statut", ""].map((c, i) => h("th", { class: i === 4 ? "n" : "" }, c || h("span", { class: "sr", text: "Actions" }))))), tr))));
     requestAnimationFrame(redrawCharts);
   }
 
@@ -3400,7 +3488,7 @@ if (typeof module !== "undefined") module.exports = ENGINE;
   /* ================= Structure : micro-entreprise, EURL ou SASU ================= */
   const SNAMES = { micro: "Micro-entreprise", eurlir: "EURL à l’IR", eurlis: "EURL à l’IS", sasu: "SASU" };
   const SCOL = { micro: "var(--c-green)", eurlir: "var(--c-orange)", eurlis: "var(--c-pink)", sasu: "var(--accent)" };
-  const SKEYS = ["micro", "eurlir", "eurlis", "sasu"];
+  const SKEYS = ["micro", "eurlir", "eurlis", "sasu"], SSHORT = { micro: "Micro", eurlir: "EURL IR", eurlis: "EURL IS", sasu: "SASU" };
   function structParams() {
     const sc = cur(), S_ = sc.struct, R = sc.regime, f = 12 / SIM.P.n, sim = S_.source === "sim";
     const C = (v, mx = 1e8) => Math.min(mx, Math.max(0, num(v)));
@@ -3478,7 +3566,7 @@ if (typeof module !== "undefined") module.exports = ENGINE;
         ["Net perso", s => eurS0(s.net), true], ["Reste dans la société", s => dash(s.retained)]];
       const tb = h("tbody"); lines.forEach(([l, f, b]) => tb.append(h("tr", { style: b ? "font-weight:600" : "" }, h("td", { text: l }), SKEYS.map(k => h("td", { class: "n", text: f(c[k]) })))));
       res.append(h("div", { class: "card" }, h("div", { class: "card-h" }, h("div", {}, h("h2", { text: "Détail du calcul" }), h("p", { text: "Sur 12 mois, en euros." }))), h("div", { class: "scroll", style: "max-height:none" },
-        h("table", { class: "tbl" }, h("thead", {}, h("tr", {}, h("th", {}, h("span", { class: "sr", text: "Ligne" })), SKEYS.map(k => h("th", { class: "n", text: SNAMES[k] })))), tb))));
+        h("table", { class: "tbl calc" }, h("thead", {}, h("tr", {}, h("th", {}, h("span", { class: "sr", text: "Ligne" })), SKEYS.map(k => h("th", { class: "n" }, h("span", { class: "l", text: SNAMES[k] }), h("span", { class: "s", text: SSHORT[k] }))))), tb))));
       // point de bascule
       const maxCa = Math.min(3000000, Math.max(150000, Math.ceil(p.ca * 1.6 / 10000) * 10000)), stepCa = maxCa <= 200000 ? 5000 : maxCa <= 1000000 ? 20000 : 100000, fine = maxCa <= 1000000 ? 1000 : 10000, list = []; for (let x = stepCa; x <= maxCa; x += stepCa) list.push(x);
       let mk = 0; list.forEach((x, i) => { if (Math.abs(x - p.ca) < Math.abs(list[mk] - p.ca)) mk = i; });
@@ -4052,7 +4140,7 @@ if (typeof module !== "undefined") module.exports = ENGINE;
       row("Scénario d’exemple", h("button", { class: "btn gray", type: "button", text: "Ajouter", onclick: () => { const ex = example(); S.scenarios.push(ex); S.activeId = ex.id; compute(); renderAll(); scheduleSave(); toast("Scénario d’exemple ajouté et affiché"); } })),
       row("Réinitialiser", resetAll, { hint: SY.on ? "Si la synchronisation est active, tes scénarios reviendront depuis le dépôt" : "Supprime tes scénarios et tes réglages" })),
       h("p", { class: "group-f", text: "Tes données sont enregistrées dans ce navigateur. Exporte-les pour les retrouver ailleurs." }),
-      /iPhone|iPad/.test(navigator.userAgent) && !navigator.standalone && !window.claude && /^https?:$/.test(location.protocol) ? h("p", { class: "group-f", text: "Pour l’installer sur l’iPhone : dans Safari, touche Partager, puis « Sur l’écran d’accueil »." }) : null);
+      /iPhone|iPad/.test(navigator.userAgent) && !navigator.standalone && !window.claude && /^https?:$/.test(location.protocol) ? h("p", { class: "group-f", text: "Pour l’installer sur l’iPhone : dans Safari, touche Partager, puis « Sur l’écran d’accueil »." }) : "");
     v.append(h("div", { class: "pgrid" }, colA, colB));
   }
 
